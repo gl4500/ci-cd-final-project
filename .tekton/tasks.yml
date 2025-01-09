@@ -32,16 +32,18 @@ spec:
               # Delete files and directories starting with .. plus any other character
               rm -rf "${WORKSPACE_SOURCE_PATH}"/..?*
             fi
----        
+---
 apiVersion: tekton.dev/v1beta1
 kind: Task
 metadata:
   name: nose
 spec:
-  workspaces: source
+  workspaces:
+    - name: source
+      description: Workspace containing the source code
   params:
-    - name: args:
-      description: Arguments to pass to nose
+    - name: args
+      description: Arguments to pass to nosetests
       type: string
       default: "-v"
   steps:
@@ -51,6 +53,17 @@ spec:
       script: |
         #!/bin/bash
         set -e
+        # Upgrade pip and install dependencies
         python -m pip install --upgrade pip wheel
-        pip install -r requirements.txt
-        nosetests -v --with-spec --spec-color
+        if [ -f requirements.txt ]; then
+          pip install -r requirements.txt
+        else
+          echo "Error: requirements.txt not found in $(workspaces.source.path)"
+          exit 1
+        fi
+        # Run nosetests with specified arguments
+        if ! command -v nosetests &> /dev/null; then
+          echo "Installing nosetests..."
+          pip install nose
+        fi
+        nosetests "$(params.args)"
